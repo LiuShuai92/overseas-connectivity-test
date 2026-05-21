@@ -33,21 +33,44 @@ jobs:
           echo "**方法**: \`${{ inputs.method }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          HTTP_CODE=$(curl -s -o response.txt -w "%{http_code}" \
+          # 使用 -v 参数记录详细通信过程，将 stderr 导入 verbose.txt
+          HTTP_CODE=$(curl -s -o response.txt -w "%{http_code}" -v \
             --connect-timeout 15 \
             --max-time 30 \
             -X "${{ inputs.method }}" \
             -H "Content-Type: ${{ inputs.content_type }}" \
             -d '${{ inputs.body }}' \
-            "${{ inputs.target_url }}" 2>/dev/null)
+            "${{ inputs.target_url }}" 2> verbose.txt)
           
           echo "**状态码**: \`$HTTP_CODE\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**响应体**:" >> $GITHUB_STEP_SUMMARY
+
+          # 从 verbose 日志中提取 请求头（以 "> " 开头）
+          echo "**请求头 (Request Headers)**:" >> $GITHUB_STEP_SUMMARY
+          echo '```http' >> $GITHUB_STEP_SUMMARY
+          grep "^> " verbose.txt | sed 's/^> //' >> $GITHUB_STEP_SUMMARY || echo "(无)" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # 从 verbose 日志中提取 响应头（以 "< " 开头）
+          echo "**响应头 (Response Headers)**:" >> $GITHUB_STEP_SUMMARY
+          echo '```http' >> $GITHUB_STEP_SUMMARY
+          grep "^< " verbose.txt | sed 's/^< //' >> $GITHUB_STEP_SUMMARY || echo "(无)" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "**响应体 (Response Body)**:" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
           cat response.txt >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "(空)" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           
+          # --- GitHub Actions 控制台实时输出 ---
           echo "状态码: $HTTP_CODE"
           echo "来源IP: $SOURCE_IP"
+          echo -e "\n--- 请求头 (Request Headers) ---"
+          grep "^> " verbose.txt | sed 's/^> //'
+          echo -e "\n--- 响应头 (Response Headers) ---"
+          grep "^< " verbose.txt | sed 's/^< //'
+          echo -e "\n--- 响应体 (Response Body) ---"
           cat response.txt 2>/dev/null
+          echo ""
